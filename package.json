@@ -1,0 +1,23 @@
+{
+  "name": "deepseek-harness-desktop",
+  "productName": "DeepSeek Harness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Desktop shell for DeepSeek Harness: boots the local `dsh web` service and shows the GUI in its own window, so no terminal is needed.",
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "icon": "electron scripts/make-icon.js",
+    "smoke": "electron . --smoke-test",
+    "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1",
+    "setup": "npm install && npm run icon && npm run shortcuts"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.1.5-rc.1"
+  },
+  "devDependencies": {
+    "electron": "^38.8.6"
+  }
+}

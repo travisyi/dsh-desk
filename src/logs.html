@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>DeepSeek Harness — 服务日志</title>
+    <style>
+      :root { color-scheme: dark; --bg: #0b1020; --panel: #111830; --fg: #dbe3f2; --muted: #8494b4; --accent: #4d6bfe; }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex; flex-direction: column; height: 100%;
+        background: var(--bg); color: var(--fg);
+        font: 12.5px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      header {
+        display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+        padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.08);
+        background: var(--panel);
+      }
+      .status { font-weight: 600; }
+      .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #7a8699; margin-right: 6px; }
+      .dot.ready { background: #3ddc84; }
+      .dot.starting, .dot.stopping { background: #f2c14e; }
+      .dot.failed { background: #ff5c5c; }
+      .path { color: var(--muted); font-size: 11.5px; }
+      button {
+        background: #1b2545; color: var(--fg); border: 1px solid rgba(255,255,255,.12);
+        border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer;
+      }
+      button:hover { background: #26325c; }
+      .spacer { flex: 1 1 auto; }
+      main { flex: 1 1 auto; display: grid; grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; min-height: 0; }
+      section { display: flex; flex-direction: column; min-height: 0; }
+      section h2 { margin: 0 0 4px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+      pre {
+        margin: 0; flex: 1 1 auto; overflow: auto; white-space: pre-wrap; word-break: break-word;
+        background: #070b16; border: 1px solid rgba(255,255,255,.07); border-radius: 8px;
+        padding: 10px 12px; font: 12px/1.5 "Cascadia Mono", Consolas, "Courier New", monospace;
+      }
+      .grid { display: grid; grid-template-rows: 1fr 1fr; gap: 8px; flex: 1 1 auto; min-height: 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="status"><span class="dot" id="dot"></span><span id="status">读取中…</span></span>
+      <span class="path" id="paths"></span>
+      <span class="spacer"></span>
+      <button id="settings">打开设置文件</button>
+      <button id="folder">打开日志目录</button>
+      <button id="reload">立即刷新</button>
+    </header>
+    <main>
+      <div class="grid">
+        <section>
+          <h2>服务输出（dsh web）</h2>
+          <pre id="service"></pre>
+        </section>
+        <section>
+          <h2>桌面外壳（desktop）</h2>
+          <pre id="desktop"></pre>
+        </section>
+      </div>
+    </main>
+    <script>
+      const els = {
+        dot: document.getElementById('dot'),
+        status: document.getElementById('status'),
+        paths: document.getElementById('paths'),
+        service: document.getElementById('service'),
+        desktop: document.getElementById('desktop'),
+      };
+
+      function atBottom(node) {
+        return node.scrollHeight - node.scrollTop - node.clientHeight < 40;
+      }
+
+      function render(snapshot) {
+        const state = snapshot.status?.state ?? 'stopped';
+        els.dot.className = `dot ${state}`;
+        els.status.textContent = snapshot.status?.label ?? state;
+        els.paths.textContent = [
+          snapshot.settings?.settingsPath,
+          snapshot.files?.service,
+        ].filter(Boolean).join('   ·   ');
+        const stickService = atBottom(els.service);
+        const stickDesktop = atBottom(els.desktop);
+        els.service.textContent = (snapshot.service ?? []).join('\n');
+        els.desktop.textContent = (snapshot.desktop ?? []).join('\n');
+        if (stickService) els.service.scrollTop = els.service.scrollHeight;
+        if (stickDesktop) els.desktop.scrollTop = els.desktop.scrollHeight;
+      }
+
+      async function refresh() {
+        try {
+          render(await window.dshLogs.read());
+        } catch (error) {
+          els.status.textContent = `读取日志失败：${error.message}`;
+        }
+      }
+
+      document.getElementById('reload').addEventListener('click', refresh);
+      document.getElementById('folder').addEventListener('click', () => window.dshLogs.openFolder());
+      document.getElementById('settings').addEventListener('click', () => window.dshLogs.openSettings());
+
+      refresh();
+      window.dshLogs.poll(refresh, 1500);
+    </script>
+  </body>
+</html>

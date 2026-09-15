@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>DeepSeek Harness</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020;
+        --fg: #e7ecf5;
+        --muted: #8b97b0;
+        --accent: #4d6bfe;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(120% 120% at 50% 0%, #17224a 0%, var(--bg) 62%);
+        color: var(--fg);
+        font: 13px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+        overflow: hidden;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      .frame {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 24px 26px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+        width: calc(100% - 28px);
+        text-align: center;
+      }
+      .logo { width: 60px; height: 60px; }
+      .logo[hidden] { display: none; }
+      h1 { margin: 0; font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
+      #status { color: var(--muted); font-size: 12.5px; min-height: 18px; }
+      #detail {
+        color: #5d6b88;
+        font: 11px/1.45 "Cascadia Mono", Consolas, monospace;
+        height: 32px;
+        overflow: hidden;
+        max-width: 100%;
+        word-break: break-all;
+      }
+      .spinner {
+        width: 130px; height: 3px; border-radius: 3px; overflow: hidden;
+        background: rgba(255, 255, 255, 0.09);
+      }
+      .spinner::after {
+        content: ""; display: block; width: 40%; height: 100%;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        animation: slide 1.15s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0% { transform: translateX(-110%); }
+        100% { transform: translateX(280%); }
+      }
+      .hint { color: #61708c; font-size: 11.5px; }
+      .elapsed { color: #7f8dab; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+    </style>
+  </head>
+  <body>
+    <div class="frame">
+      <img class="logo" src="../assets/icon.png" alt="" onerror="this.hidden = true" />
+      <h1>DeepSeek Harness</h1>
+      <div class="spinner" role="progressbar" aria-label="正在启动"></div>
+      <div id="status">正在启动本地服务…</div>
+      <div id="detail"></div>
+      <div class="elapsed" id="elapsed"></div>
+      <div class="hint">首次启动需要预热约 1 分钟；之后关窗会收进托盘，服务保持常驻</div>
+    </div>
+    <script>
+      const started = Date.now();
+      window.__setStatus = (text) => {
+        const node = document.getElementById('status');
+        if (node) node.textContent = String(text);
+      };
+      window.__setDetail = (text) => {
+        const node = document.getElementById('detail');
+        if (node) node.textContent = String(text);
+      };
+      setInterval(() => {
+        const seconds = Math.round((Date.now() - started) / 1000);
+        const node = document.getElementById('elapsed');
+        if (node) node.textContent = `已等待 ${seconds} 秒`;
+      }, 500);
+    </script>
+  </body>
+</html>
