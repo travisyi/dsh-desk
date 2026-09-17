@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>DeepSeek Harness — Token 用量</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b1020; --panel: #111830; --fg: #dbe3f2; --muted: #8494b4;
+        --accent: #4d6bfe; --line: rgba(255, 255, 255, .08);
+        --in: #5b8cff; --cache: #3ddc84; --out: #f2c14e;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        display: flex; flex-direction: column; height: 100%;
+        background: var(--bg); color: var(--fg);
+        font: 12.5px/1.55 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      header {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+      }
+      h1 { margin: 0; font-size: 14px; font-weight: 600; }
+      .meta { color: var(--muted); font-size: 11.5px; }
+      button {
+        background: #1b2545; color: var(--fg); border: 1px solid rgba(255, 255, 255, .12);
+        border-radius: 6px; padding: 5px 10px; font: inherit; cursor: pointer;
+      }
+      button:hover { background: #26325c; }
+      button:disabled { opacity: .5; cursor: default; }
+      .spacer { flex: 1 1 auto; }
+      main { flex: 1 1 auto; overflow: auto; padding: 12px 14px; min-height: 0; }
+
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 13px; }
+      .card.active { border-color: rgba(77, 107, 254, .55); }
+      .card .label { color: var(--muted); font-size: 11px; letter-spacing: .05em; }
+      .card .total { font-size: 21px; font-weight: 600; margin: 3px 0 7px; font-variant-numeric: tabular-nums; }
+      .card .split { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; color: var(--muted); }
+      .card .split span { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+      .swatch { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+
+      h2 { margin: 0 0 7px; font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+      th { color: var(--muted); font-weight: 600; font-size: 11px; position: sticky; top: 0; background: var(--bg); }
+      th:first-child, td:first-child { text-align: left; }
+      tbody tr:hover { background: rgba(255, 255, 255, .035); }
+      td.date { font-variant-numeric: normal; }
+      .bar { width: 100%; min-width: 70px; height: 8px; border-radius: 4px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+      .bar > span { display: block; height: 100%; border-radius: 4px; }
+      .empty { color: var(--muted); padding: 24px 4px; }
+      .warn { margin-top: 14px; color: #f2c14e; font-size: 11.5px; }
+      .spinner {
+        width: 13px; height: 13px; border: 2px solid rgba(255, 255, 255, .25);
+        border-top-color: var(--fg); border-radius: 50%; display: inline-block;
+        vertical-align: -2px; margin-right: 7px; animation: spin .8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Token 用量</h1>
+      <span class="meta" id="meta">扫描中…</span>
+      <span class="spacer"></span>
+      <button id="copy">复制为文本</button>
+      <button id="folder">打开会话目录</button>
+      <button id="reload">刷新</button>
+    </header>
+    <main>
+      <section class="cards" id="cards"></section>
+      <section>
+        <h2>按天统计</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>占比</th>
+              <th>输入(未缓存)</th>
+              <th>缓存读取</th>
+              <th>输出</th>
+              <th>合计</th>
+              <th>会话</th>
+              <th>消息</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden>还没有任何用量记录。</div>
+        <div class="warn" id="warn" hidden></div>
+      </section>
+    </main>
+    <script>
+      const els = {
+        meta: document.getElementById('meta'),
+        cards: document.getElementById('cards'),
+        rows: document.getElementById('rows'),
+        empty: document.getElementById('empty'),
+        warn: document.getElementById('warn'),
+        reload: document.getElementById('reload'),
+        copy: document.getElementById('copy'),
+        folder: document.getElementById('folder'),
+      };
+
+      const nf = new Intl.NumberFormat('zh-CN');
+      const fmt = (n) => nf.format(Math.round(n ?? 0));
+
+      function esc(text) {
+        return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      }
+
+      /** One subtotal card: big total plus the input/cache/output split. */
+      function card(bucket, active) {
+        const split = [
+          ['--in', '输入', bucket.usage.input],
+          ['--cache', '缓存读取', bucket.usage.cacheRead],
+          ['--out', '输出', bucket.usage.output],
+        ].map(([colour, label, value]) =>
+          `<span><em style="font-style:normal"><i class="swatch" style="background:var(${colour})"></i>${label}</em><b>${fmt(value)}</b></span>`,
+        ).join('');
+        const total = bucket.usage.input + bucket.usage.cacheRead + bucket.usage.output;
+        return `<div class="card${active ? ' active' : ''}">
+          <div class="label">${esc(bucket.label)}</div>
+          <div class="total">${fmt(total)}</div>
+          <div class="split">${split}</div>
+        </div>`;
+      }
+
+      function render(report) {
+        const s = report.scanned;
+        els.meta.textContent = `${report.sessionsRoot} · ${s.files} 个会话日志 · 用时 ${s.ms}ms`;
+
+        const order = ['today', 'week', 'month', 'all'];
+        els.cards.innerHTML = order
+          .map((key) => card(report.subtotals[key], key === 'all'))
+          .join('');
+
+        const max = report.days.reduce((m, d) => Math.max(m, d.total), 0) || 1;
+        els.rows.innerHTML = report.days.map((day) => {
+          const width = Math.max(1.5, (day.total / max) * 100);
+          return `<tr>
+            <td class="date">${esc(day.date)}</td>
+            <td><div class="bar"><span style="width:${width.toFixed(2)}%;background:linear-gradient(90deg,var(--in),var(--accent))"></span></div></td>
+            <td>${fmt(day.input)}</td>
+            <td>${fmt(day.cacheRead)}</td>
+            <td>${fmt(day.output)}</td>
+            <td><b>${fmt(day.total)}</b></td>
+            <td>${fmt(day.sessions)}</td>
+            <td>${fmt(day.messages)}</td>
+          </tr>`;
+        }).join('');
+        els.empty.hidden = report.days.length > 0;
+
+        if (report.warnings.length > 0) {
+          els.warn.hidden = false;
+          els.warn.textContent = `${report.warnings.length} 个日志读取失败：${report.warnings.slice(0, 3).join('；')}`;
+        } else {
+          els.warn.hidden = true;
+        }
+      }
+
+      async function refresh() {
+        els.reload.disabled = true;
+        els.meta.innerHTML = '<span class="spinner"></span>扫描会话日志…';
+        try {
+          render(await window.dshUsage.read());
+        } catch (error) {
+          els.meta.textContent = `读取失败：${error.message}`;
+        } finally {
+          els.reload.disabled = false;
+        }
+      }
+
+      els.reload.addEventListener('click', refresh);
+      els.folder.addEventListener('click', () => window.dshUsage.openSessionsFolder());
+      els.copy.addEventListener('click', async () => {
+        await window.dshUsage.asText();
+        els.copy.textContent = '已复制';
+        setTimeout(() => { els.copy.textContent = '复制为文本'; }, 1200);
+      });
+
+      refresh();
+    </script>
+  </body>
+</html>
