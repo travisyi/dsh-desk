@@ -21,6 +21,7 @@ const {
 const config = require('./config');
 const { DshService } = require('./supervisor');
 const { desktop: desktopLog, service: serviceLog } = require('./logger');
+const usageStats = require('./usage-stats');
 
 const APP_NAME = 'DeepSeek Harness';
 const IS_SMOKE_TEST = process.argv.includes('--smoke-test');
@@ -41,6 +42,10 @@ let mainWindow = null;
 let splashWindow = null;
 /** @type {BrowserWindow|null} */
 let logWindow = null;
+/** @type {BrowserWindow|null} */
+let usageWindow = null;
+/** The last usage report the window rendered, reused for "copy as text". */
+let lastUsageReport = null;
 /** @type {Tray|null} */
 let tray = null;
 let quitting = false;
@@ -295,6 +300,37 @@ function openLogWindow() {
   });
 }
 
+/* --------------------------------------------------------------- usage window */
+
+/** Open (or focus) the token usage window. */
+function openUsageWindow() {
+  if (usageWindow !== null && !usageWindow.isDestroyed()) {
+    usageWindow.focus();
+    return;
+  }
+  usageWindow = new BrowserWindow({
+    width: 940,
+    height: 640,
+    title: `${APP_NAME} — Token 用量`,
+    backgroundColor: '#0b1020',
+    icon: appIcon(),
+    parent: mainWindow ?? undefined,
+    // The self-check loads this page too; don't flash it on screen for that.
+    show: !IS_SMOKE_TEST,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      preload: path.join(__dirname, 'usage-preload.js'),
+    },
+  });
+  usageWindow.setMenuBarVisibility(false);
+  usageWindow.loadFile(path.join(__dirname, 'usage.html')).catch(() => {});
+  usageWindow.on('closed', () => {
+    usageWindow = null;
+  });
+}
+
 /* ------------------------------------------------------------------- service */
 
 /** Start the service and show its GUI, reporting failures to the user. */
@@ -466,6 +502,7 @@ function updateMenus() {
       : { label: '启动服务', enabled: !busy, click: () => bootService().catch(() => {}) },
     { type: 'separator' },
     { label: '打开服务日志', click: openLogWindow },
+    { label: 'Token 用量统计', click: openUsageWindow },
     { label: '打开工作区目录', click: openWorkspace },
     { label: '打开设置文件', click: openSettingsFile },
     {
@@ -498,6 +535,7 @@ function updateMenus() {
           : { label: '启动服务', enabled: !busy, click: () => bootService().catch(() => {}) },
         { type: 'separator' },
         { label: '打开服务日志', accelerator: 'CmdOrCtrl+Shift+L', click: openLogWindow },
+        { label: 'Token 用量统计', accelerator: 'CmdOrCtrl+Shift+U', click: openUsageWindow },
         { label: '打开工作区目录', click: openWorkspace },
         { label: '打开设置文件', click: openSettingsFile },
         { type: 'separator' },
@@ -674,6 +712,32 @@ async function runSmokeTest() {
     report.localStorageKeys = await mainWindow.webContents
       .executeJavaScript('Object.keys(window.localStorage).length')
       .catch(() => null);
+
+    // Token usage: the aggregation module and its window must both work.
+    const usage = await usageStats.collectUsage();
+    report.usage = {
+      files: usage.scanned.files,
+      activeSessions: usage.scanned.activeSessions,
+      days: usage.days.length,
+      total: usage.subtotals.all.usage,
+    };
+    report.steps.push(
+      `usage: ${usage.scanned.activeSessions}/${usage.scanned.files} session logs have usage, ${usage.days.length} days`,
+    );
+
+    openUsageWindow();
+    const usageDeadline = Date.now() + 30_000;
+    let usageRows = 0;
+    while (Date.now() < usageDeadline) {
+      usageRows = await usageWindow?.webContents
+        .executeJavaScript('document.querySelectorAll("#rows tr").length')
+        .catch(() => 0);
+      if (usageRows > 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+    report.usageRows = usageRows;
+    report.steps.push(`usage window rendered ${usageRows} day rows`);
+
     report.ok = rendered > 0;
   } catch (error) {
     report.error = error instanceof Error ? error.message : String(error);
@@ -773,6 +837,16 @@ function main() {
     }));
     ipcMain.handle('logs:openFolder', () => shell.openPath(config.LOG_DIR));
     ipcMain.handle('logs:openSettings', () => shell.openPath(config.SETTINGS_PATH));
+    ipcMain.handle('usage:read', async () => {
+      lastUsageReport = await usageStats.collectUsage();
+      return lastUsageReport;
+    });
+    ipcMain.handle('usage:asText', () => {
+      if (lastUsageReport === null) return false;
+      clipboard.writeText(usageStats.formatReport(lastUsageReport));
+      return true;
+    });
+    ipcMain.handle('usage:openFolder', () => shell.openPath(path.join(usageStats.dshHome(), 'sessions')));
 
     if (IS_SMOKE_TEST) {
       createMainWindow();

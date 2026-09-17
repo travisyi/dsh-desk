@@ -25,14 +25,14 @@ npm start
 ## 它能做什么
 
 - **自动起服务**：启动时自动拉起本机 `dsh web`（`--no-open`，只监听 127.0.0.1），
-等它打印出带 token 的地址后，直接在应用窗口里打开。
+  等它打印出带 token 的地址后，直接在应用窗口里打开。
 - **端口自适应**：默认用 3080；被占用时自动让系统分配一个空闲端口，不会和已有实例打架。
 - **关窗不断服务**：点关闭只是收进托盘，服务继续跑；托盘里可以随时唤回窗口、重启服务、退出。
 - **托盘 + 菜单**：显示窗口、浏览器打开、复制地址、重启/停止服务、打开日志、打开工作区、打开设置、开机自启。
 - **内置日志窗口**：服务 stdout/stderr 和外壳自身的日志都有落盘（`logs/`），出问题一眼能看到原因。
 - **自动定位 dsh**：在本地 `node_modules`、npm 全局目录、`npx` 缓存、`PATH` 里找 `@deepseek-ai/dsh`，
-装有多份时取**最新**的一份；并用真正的 `node.exe` 启动（而不是 Electron 自带运行时，
-避免原生模块 ABI 不一致）。
+  装有多份时取**最新**的一份；并用真正的 `node.exe` 启动（而不是 Electron 自带运行时，
+  避免原生模块 ABI 不一致）。
 
 ## 目录
 
@@ -42,7 +42,6 @@ deepseek-harness-desktop\
 ├─ assets\              图标：logo.svg 入库，icon / tray 由 npm run icon 生成
 ├─ scripts\             图标生成、快捷方式安装
 ├─ logs\                运行日志（自动轮转，单文件上限 4 MB）
-├─ user-data\           Electron 配置/缓存（可移植，删掉即重置界面状态）
 ├─ settings.json        你的设置（首次运行自动生成）
 ├─ window-state.json    窗口位置/大小记忆
 └─ launch.cmd           命令行启动入口
@@ -65,12 +64,12 @@ deepseek-harness-desktop\
 **DeepSeek Harness 本身不需要单独下载安装**：它作为依赖写在 `package.json` 里，
 下面那条 `npm install` 会把它装进本目录的 `node_modules/`，应用启动时自动找到并使用。
 
-> - 官网（文档 / 下载）：[https://www.deepseek.com/harness/en/](https://www.deepseek.com/harness/en/)
+> - 官网（文档 / 下载）：<https://www.deepseek.com/harness/en/>
 > - 官方 Quick start 是 `npx @deepseek-ai/dsh web`；本项目相当于把这一步固化成桌面壳，
-> 并用真正的 `node.exe` 去跑它。
+>   并用真正的 `node.exe` 去跑它。
 > - 机器上若同时存在多份 `@deepseek-ai/dsh`（全局安装、`npx` 缓存等），应用会挑
-> **最新的那一份**，不保证就是本目录这份。想固定用本目录的，在 `settings.json` 里把
-> `dshBin` 设为本目录下 `node_modules\@deepseek-ai\dsh\lib\bin.js` 的绝对路径。
+>   **最新的那一份**，不保证就是本目录这份。想固定用本目录的，在 `settings.json` 里把
+>   `dshBin` 设为本目录下 `node_modules\@deepseek-ai\dsh\lib\bin.js` 的绝对路径。
 
 ### 安装步骤
 
@@ -96,7 +95,7 @@ npm install
 - 也可以运行 `npm start`，或者双击本目录的 `launch.cmd`。
 - 关闭窗口默认收进托盘；要彻底退出，用托盘菜单或 `Ctrl+Q`。
 - 开机自启：托盘菜单勾选「开机自动启动」，或把
-`settings.json` 里的 `openAtLogin` 改成 `true`。
+  `settings.json` 里的 `openAtLogin` 改成 `true`。
 
 ### 关于启动速度
 
@@ -111,7 +110,6 @@ npm install
 ## 设置（`settings.json`）
 
 改完保存，重启应用生效。
-
 
 | 键                       | 默认值           | 说明                                                        |
 | ----------------------- | ------------- | --------------------------------------------------------- |
@@ -130,11 +128,9 @@ npm install
 | `openAtLogin`           | `false`       | 开机自动启动应用                                                  |
 | `openDevTools`          | `false`       | 打开窗口时同时打开开发者工具                                            |
 
-
 换一份机器级设置：把 `DSH_DESKTOP_SETTINGS` 环境变量指向另一个 json 文件即可。
 
 ## 排错
-
 
 | 现象          | 处理                                                                             |
 | ----------- | ------------------------------------------------------------------------------ |
@@ -145,13 +141,12 @@ npm install
 | 界面白屏        | 菜单「视图 → 强制重新加载」；仍不行看日志与开发者工具                                                   |
 | 想换回浏览器      | 托盘菜单「在浏览器中打开」（走带 token 的地址，能直接登录）                                              |
 
-
 ## 说明
 
 - 服务只监听 `127.0.0.1`，不对外网暴露。
 - 应用不修改 `dsh` 本身：它只是负责起进程、拿地址、显示界面、退出时收尾。
 - 每次启动的访问 token 都由新进程生成，因此桌面应用总是自己起自己的服务，
-不会去接管已经在跑的实例（旧的实例请另行关闭）。
+  不会去接管已经在跑的实例（旧的实例请另行关闭）。
 
 ## 卸载
 
@@ -167,7 +162,6 @@ npm run shortcuts -- -Remove     # 删除桌面/开始菜单快捷方式
 
 - 只是自己折腾着玩的产物，**非官方项目**；不保证维护、更新或兼容。
 - 没有 CI，也没有单元测试，只有一个 `npm run smoke` 自检（起服务、加载界面，把结果写进
-`logs/smoke-report.json`）；稳定性与正确性请自行判断。
+  `logs/smoke-report.json`）；稳定性与正确性请自行判断。
 - `dsh` 自身的问题请走官方渠道：[官网](https://www.deepseek.com/harness/en/) ·
-[GitHub](https://github.com/deepseek-ai/deepseek-harness)
-
+  [GitHub](https://github.com/deepseek-ai/deepseek-harness)

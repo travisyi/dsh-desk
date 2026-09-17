@@ -10,6 +10,7 @@
   "scripts": {
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
+    "usage": "node scripts/usage.js",
     "smoke": "electron . --smoke-test",
     "shortcuts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/install-shortcuts.ps1",
     "setup": "npm install && npm run icon && npm run shortcuts"
