@@ -715,19 +715,29 @@ async function runSmokeTest() {
 
     // Token usage: the aggregation module and its window must both work.
     const usage = await usageStats.collectUsage();
+    // The same samples are grouped three ways; they must agree exactly.
+    const sumBy = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
+    const reconciles = sumBy(usage.routes, 'total') === sumBy(usage.days, 'total')
+      && sumBy(usage.days, 'total') === sumBy(usage.sessions, 'total')
+      && sumBy(usage.days, 'total') === usage.subtotals.all.usage.input
+        + usage.subtotals.all.usage.output + usage.subtotals.all.usage.cacheRead;
     report.usage = {
       files: usage.scanned.files,
       activeSessions: usage.scanned.activeSessions,
       days: usage.days.length,
+      routes: usage.routes.map((route) => `${route.provider}/${route.model}`),
+      reconciles,
       total: usage.subtotals.all.usage,
     };
     report.steps.push(
-      `usage: ${usage.scanned.activeSessions}/${usage.scanned.files} session logs have usage, ${usage.days.length} days`,
+      `usage: ${usage.scanned.activeSessions}/${usage.scanned.files} session logs have usage, `
+      + `${usage.days.length} days, ${usage.routes.length} route(s), reconciles=${reconciles}`,
     );
 
     openUsageWindow();
     const usageDeadline = Date.now() + 30_000;
     let usageRows = 0;
+    let usageRouteRows = 0;
     while (Date.now() < usageDeadline) {
       usageRows = await usageWindow?.webContents
         .executeJavaScript('document.querySelectorAll("#rows tr").length')
@@ -735,10 +745,14 @@ async function runSmokeTest() {
       if (usageRows > 0) break;
       await new Promise((resolve) => setTimeout(resolve, 300));
     }
+    usageRouteRows = await usageWindow?.webContents
+      .executeJavaScript('document.querySelectorAll("#routes tr").length')
+      .catch(() => 0);
     report.usageRows = usageRows;
-    report.steps.push(`usage window rendered ${usageRows} day rows`);
+    report.usageRouteRows = usageRouteRows;
+    report.steps.push(`usage window rendered ${usageRows} day rows, ${usageRouteRows} route rows`);
 
-    report.ok = rendered > 0;
+    report.ok = rendered > 0 && reconciles;
   } catch (error) {
     report.error = error instanceof Error ? error.message : String(error);
   } finally {
